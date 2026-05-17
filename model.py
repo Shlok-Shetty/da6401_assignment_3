@@ -203,10 +203,10 @@ class Transformer(nn.Module):
         self,
         src_vocab_size: int   = 7853,
         tgt_vocab_size: int   = 5893,
-        d_model:        int   = 256,
-        N:              int   = 3,
+        d_model:        int   = 512,   # changed
+        N:              int   = 6,     # changed
         num_heads:      int   = 8,
-        d_ff:           int   = 512,
+        d_ff:           int   = 2048,  # changed
         dropout:        float = 0.1,
         pad_idx:        int   = 1,
         pe_type:        str   = 'sinusoidal',
