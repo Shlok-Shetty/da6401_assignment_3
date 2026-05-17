@@ -294,8 +294,12 @@ class Transformer(nn.Module):
     def infer(self, src_sentence: str) -> str:
         if self._spacy_de is None:
             import spacy
-            self._spacy_de = spacy.load('de_core_news_sm')
-
+            try:
+                self._spacy_de = spacy.load('de_core_news_sm')
+            except OSError:
+                from spacy.cli import download
+                download('de_core_news_sm')
+                self._spacy_de = spacy.load('de_core_news_sm')
         self.eval()
         device = next(self.parameters()).device
 
