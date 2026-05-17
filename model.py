@@ -197,6 +197,16 @@ class Decoder(nn.Module):
         return self.norm(x)
 
 
+def _load_spacy_de():
+    import spacy
+    try:
+        return spacy.load('de_core_news_sm')
+    except OSError:
+        from spacy.cli import download
+        download('de_core_news_sm')
+        return spacy.load('de_core_news_sm')
+
+
 class Transformer(nn.Module):
     def __init__(
         self,
@@ -239,7 +249,7 @@ class Transformer(nn.Module):
         self.scale     = scale
         self.src_vocab = src_vocab
         self.tgt_vocab = tgt_vocab
-        self._spacy_de = None
+        self._spacy_de = _load_spacy_de()
 
         self.src_embedding = nn.Embedding(src_vocab_size, d_model, padding_idx=pad_idx)
         self.tgt_embedding = nn.Embedding(tgt_vocab_size, d_model, padding_idx=pad_idx)
@@ -292,14 +302,6 @@ class Transformer(nn.Module):
         return self.decode(memory, src_mask, tgt, tgt_mask)
 
     def infer(self, src_sentence: str) -> str:
-        if self._spacy_de is None:
-            import spacy
-            try:
-                self._spacy_de = spacy.load('de_core_news_sm')
-            except OSError:
-                from spacy.cli import download
-                download('de_core_news_sm')
-                self._spacy_de = spacy.load('de_core_news_sm')
         self.eval()
         device = next(self.parameters()).device
 
