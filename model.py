@@ -1,6 +1,7 @@
 import math
 import copy
 import os
+import pickle
 import gdown
 from typing import Optional, Tuple
 
@@ -197,16 +198,6 @@ class Decoder(nn.Module):
         return self.norm(x)
 
 
-def _load_spacy_de():
-    import spacy
-    try:
-        return spacy.load('de_core_news_sm')
-    except OSError:
-        from spacy.cli import download
-        download('de_core_news_sm')
-        return spacy.load('de_core_news_sm')
-
-
 class Transformer(nn.Module):
     def __init__(
         self,
@@ -226,31 +217,50 @@ class Transformer(nn.Module):
     ) -> None:
         super().__init__()
 
-        if checkpoint_path is not None:
-            gdown.download(id="16-IFTBgSpWAnUetSSZgyhcfLdvihPzj8", output=checkpoint_path, quiet=False)
-            ckpt           = torch.load(checkpoint_path, map_location='cpu')
-            cfg            = ckpt['model_config']
-            src_vocab_size = cfg['src_vocab_size']
-            tgt_vocab_size = cfg['tgt_vocab_size']
-            d_model        = cfg['d_model']
-            N              = cfg['N']
-            num_heads      = cfg['num_heads']
-            d_ff           = cfg['d_ff']
-            dropout        = cfg['dropout']
-            pad_idx        = cfg['pad_idx']
-            pe_type        = cfg.get('pe_type', 'sinusoidal')
-            scale          = cfg.get('scale', True)
-            src_vocab      = ckpt.get('src_vocab')
-            tgt_vocab      = ckpt.get('tgt_vocab')
+        # ── load vocab ────────────────────────────────────────────────
+        vocab_path = 'vocab.pkl'
+        if not os.path.exists(vocab_path):
+            gdown.download(id='1qAGRwLO-mSzf-BZeP2zXvQGiyDri30zi', output=vocab_path, quiet=False)
+        with open(vocab_path, 'rb') as f:
+            vocab_data = pickle.load(f)
+        src_vocab = vocab_data['src_vocab']
+        tgt_vocab = vocab_data['tgt_vocab']
 
+        # ── load checkpoint ───────────────────────────────────────────
+        ckpt_path = 'best_checkpoint.pt'
+        if not os.path.exists(ckpt_path):
+            gdown.download(id='16-IFTBgSpWAnUetSSZgyhcfLdvihPzj8', output=ckpt_path, quiet=False)
+        ckpt = torch.load(ckpt_path, map_location='cpu', weights_only=False)
+        cfg  = ckpt['model_config']
+        src_vocab_size = cfg['src_vocab_size']
+        tgt_vocab_size = cfg['tgt_vocab_size']
+        d_model        = cfg['d_model']
+        N              = cfg['N']
+        num_heads      = cfg['num_heads']
+        d_ff           = cfg['d_ff']
+        dropout        = cfg['dropout']
+        pad_idx        = cfg['pad_idx']
+        pe_type        = cfg.get('pe_type', 'sinusoidal')
+        scale          = cfg.get('scale', True)
+
+        # ── load spacy ────────────────────────────────────────────────
+        import spacy
+        try:
+            self._spacy_de = spacy.load('de_core_news_sm')
+        except OSError:
+            from spacy.cli import download
+            download('de_core_news_sm')
+            self._spacy_de = spacy.load('de_core_news_sm')
+
+        # ── store attrs ───────────────────────────────────────────────
         self.d_model   = d_model
         self.pad_idx   = pad_idx
         self.pe_type   = pe_type
         self.scale     = scale
         self.src_vocab = src_vocab
         self.tgt_vocab = tgt_vocab
-        self._spacy_de = _load_spacy_de()
 
+        # ── build architecture ────────────────────────────────────────
         self.src_embedding = nn.Embedding(src_vocab_size, d_model, padding_idx=pad_idx)
         self.tgt_embedding = nn.Embedding(tgt_vocab_size, d_model, padding_idx=pad_idx)
 
@@ -268,8 +278,8 @@ class Transformer(nn.Module):
 
         self._init_weights()
 
-        if checkpoint_path is not None:
-            self.load_state_dict(ckpt['model_state_dict'])
+        # ── load weights ──────────────────────────────────────────────
+        self.load_state_dict(ckpt['model_state_dict'])
 
     def _init_weights(self):
         for p in self.parameters():
