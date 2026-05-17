@@ -1,7 +1,7 @@
 import math
 import copy
 import os
-# import gdown
+import gdown
 from typing import Optional, Tuple
 
 import torch
@@ -200,21 +200,38 @@ class Decoder(nn.Module):
 class Transformer(nn.Module):
     def __init__(
         self,
-        src_vocab_size: int,
-        tgt_vocab_size: int,
-        d_model:   int   = 512,
-        N:         int   = 6,
-        num_heads: int   = 8,
-        d_ff:      int   = 2048,
-        dropout:   float = 0.1,
-        pad_idx:   int   = 1,
-        pe_type:   str   = 'sinusoidal',
-        scale:     bool  = True,
+        src_vocab_size: int   = None,
+        tgt_vocab_size: int   = None,
+        d_model:        int   = 512,
+        N:              int   = 6,
+        num_heads:      int   = 8,
+        d_ff:           int   = 2048,
+        dropout:        float = 0.1,
+        pad_idx:        int   = 1,
+        pe_type:        str   = 'sinusoidal',
+        scale:          bool  = True,
         src_vocab=None,
         tgt_vocab=None,
-        checkpoint_path: str = None,
+        checkpoint_path: str  = None,
     ) -> None:
         super().__init__()
+
+        if checkpoint_path is not None:
+            gdown.download(id="16-IFTBgSpWAnUetSSZgyhcfLdvihPzj8", output=checkpoint_path, quiet=False)
+            ckpt           = torch.load(checkpoint_path, map_location='cpu')
+            cfg            = ckpt['model_config']
+            src_vocab_size = cfg['src_vocab_size']
+            tgt_vocab_size = cfg['tgt_vocab_size']
+            d_model        = cfg['d_model']
+            N              = cfg['N']
+            num_heads      = cfg['num_heads']
+            d_ff           = cfg['d_ff']
+            dropout        = cfg['dropout']
+            pad_idx        = cfg['pad_idx']
+            pe_type        = cfg.get('pe_type', 'sinusoidal')
+            scale          = cfg.get('scale', True)
+            src_vocab      = ckpt.get('src_vocab')
+            tgt_vocab      = ckpt.get('tgt_vocab')
 
         self.d_model   = d_model
         self.pad_idx   = pad_idx
@@ -242,8 +259,7 @@ class Transformer(nn.Module):
         self._init_weights()
 
         if checkpoint_path is not None:
-            pass
-            # gdown.download(id="<.pth drive id>", output=checkpoint_path, quiet=False)
+            self.load_state_dict(ckpt['model_state_dict'])
 
     def _init_weights(self):
         for p in self.parameters():
