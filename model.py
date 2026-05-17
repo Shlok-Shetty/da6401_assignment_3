@@ -229,7 +229,7 @@ class Transformer(nn.Module):
         # ── load checkpoint ───────────────────────────────────────────
         ckpt_path = 'best_checkpoint.pt'
         if not os.path.exists(ckpt_path):
-            gdown.download(id='16-IFTBgSpWAnUetSSZgyhcfLdvihPzj8', output=ckpt_path, quiet=False)
+            gdown.download(id='1KTYDNSiWi0CHV_FaTe3Y2RRmDYReNacY', output=ckpt_path, quiet=False)
         ckpt = torch.load(ckpt_path, map_location='cpu', weights_only=False)
         cfg  = ckpt['model_config']
         src_vocab_size = cfg['src_vocab_size']
