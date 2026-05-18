@@ -212,7 +212,7 @@ def evaluate_bleu(
 
 
 # ══════════════════════════════════════════════════════════════════════
-#  CONFIDENCE LOGGING (experiment 5 — label smoothing)
+#  CONFIDENCE LOGGING (experiment 5)
 # ══════════════════════════════════════════════════════════════════════
 
 def log_prediction_confidence(model, data_iter, pad_idx, vocab_size, device, epoch_num):
@@ -288,7 +288,7 @@ def load_checkpoint(
     optimizer: Optional[torch.optim.Optimizer] = None,
     scheduler=None,
 ) -> int:
-    checkpoint = torch.load(path, map_location='cpu')
+    checkpoint = torch.load(path, map_location='cpu', weights_only=False)
     model.load_state_dict(checkpoint['model_state_dict'])
 
     if 'src_vocab' in checkpoint:
@@ -310,21 +310,21 @@ def load_checkpoint(
 
 def run_training_experiment(args) -> None:
     config = {
-        'd_model':       args.d_model,
-        'N':             args.N,
-        'num_heads':     args.num_heads,
-        'd_ff':          args.d_ff,
-        'dropout':       args.dropout,
-        'batch_size':    args.batch_size,
-        'num_epochs':    args.epochs,
-        'warmup_steps':  args.warmup_steps,
-        'min_freq':      2,
-        'pad_idx':       1,
-        'smoothing':     args.smoothing,
-        'max_len':       100,
-        'scheduler':     args.scheduler,
-        'pe_type':       args.pe_type,
-        'attn_scale':    not args.no_attn_scale,
+        'd_model':      args.d_model,
+        'N':            args.N,
+        'num_heads':    args.num_heads,
+        'd_ff':         args.d_ff,
+        'dropout':      args.dropout,
+        'batch_size':   args.batch_size,
+        'num_epochs':   args.epochs,
+        'warmup_steps': args.warmup_steps,
+        'min_freq':     2,
+        'pad_idx':      1,
+        'smoothing':    args.smoothing,
+        'max_len':      100,
+        'scheduler':    args.scheduler,
+        'pe_type':      args.pe_type,
+        'attn_scale':   not args.no_attn_scale,
     }
 
     wandb.init(project="da6401-a3", name=args.run_name, config=config)
@@ -353,6 +353,7 @@ def run_training_experiment(args) -> None:
         scale=cfg.attn_scale,
         src_vocab=src_vocab,
         tgt_vocab=tgt_vocab,
+        load_pretrained=False,
     ).to(device)
 
     if cfg.scheduler == 'noam':
@@ -370,9 +371,8 @@ def run_training_experiment(args) -> None:
         vocab_size=len(tgt_vocab), pad_idx=cfg.pad_idx, smoothing=cfg.smoothing
     )
 
-    log_grad_norms = args.no_attn_scale
-
-    best_bleu      = -1.0
+    log_grad_norms  = args.no_attn_scale
+    best_bleu       = -1.0
     checkpoint_path = f"best_checkpoint_{args.run_name}.pt"
 
     for epoch in range(cfg.num_epochs):
@@ -387,10 +387,9 @@ def run_training_experiment(args) -> None:
         )
         val_bleu = evaluate_bleu(model, val_loader, tgt_vocab, device=device, max_len=cfg.max_len)
 
-        if cfg.smoothing == 0.0 or True:
-            log_prediction_confidence(
-                model, val_loader, cfg.pad_idx, len(tgt_vocab), device, epoch
-            )
+        log_prediction_confidence(
+            model, val_loader, cfg.pad_idx, len(tgt_vocab), device, epoch
+        )
 
         print(f"Epoch {epoch}  train_loss={train_loss:.4f}  val_loss={val_loss:.4f}  val_bleu={val_bleu:.2f}")
 
@@ -418,21 +417,21 @@ def run_training_experiment(args) -> None:
 def parse_args():
     parser = argparse.ArgumentParser(description="DA6401 Assignment 3 - Transformer Training")
 
-    parser.add_argument('--run_name',      type=str,   default='base_noam',    help='W&B run name')
-    parser.add_argument('--scheduler',     type=str,   default='noam',         choices=['noam', 'fixed'], help='LR scheduler type')
-    parser.add_argument('--lr',            type=float, default=1e-4,           help='Fixed LR (only used when --scheduler fixed)')
-    parser.add_argument('--no_attn_scale', action='store_true',                help='Disable 1/sqrt(dk) scaling in attention')
-    parser.add_argument('--pe_type',       type=str,   default='sinusoidal',   choices=['sinusoidal', 'learned'], help='Positional encoding type')
-    parser.add_argument('--smoothing',     type=float, default=0.1,            help='Label smoothing epsilon')
+    parser.add_argument('--run_name',      type=str,   default='base_noam',  help='W&B run name')
+    parser.add_argument('--scheduler',     type=str,   default='noam',       choices=['noam', 'fixed'])
+    parser.add_argument('--lr',            type=float, default=1e-4,         help='Fixed LR (only used when --scheduler fixed)')
+    parser.add_argument('--no_attn_scale', action='store_true',              help='Disable 1/sqrt(dk) scaling in attention')
+    parser.add_argument('--pe_type',       type=str,   default='sinusoidal', choices=['sinusoidal', 'learned'])
+    parser.add_argument('--smoothing',     type=float, default=0.1)
 
-    parser.add_argument('--d_model',       type=int,   default=256)
-    parser.add_argument('--N',             type=int,   default=3)
-    parser.add_argument('--num_heads',     type=int,   default=8)
-    parser.add_argument('--d_ff',          type=int,   default=512)
-    parser.add_argument('--dropout',       type=float, default=0.1)
-    parser.add_argument('--batch_size',    type=int,   default=128)
-    parser.add_argument('--epochs',        type=int,   default=20)
-    parser.add_argument('--warmup_steps',  type=int,   default=4000)
+    parser.add_argument('--d_model',      type=int,   default=512)
+    parser.add_argument('--N',            type=int,   default=6)
+    parser.add_argument('--num_heads',    type=int,   default=8)
+    parser.add_argument('--d_ff',         type=int,   default=2048)
+    parser.add_argument('--dropout',      type=float, default=0.1)
+    parser.add_argument('--batch_size',   type=int,   default=128)
+    parser.add_argument('--epochs',       type=int,   default=20)
+    parser.add_argument('--warmup_steps', type=int,   default=4000)
 
     return parser.parse_args()
 
