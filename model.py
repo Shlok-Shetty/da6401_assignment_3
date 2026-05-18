@@ -203,64 +203,66 @@ class Transformer(nn.Module):
         self,
         src_vocab_size: int   = 7853,
         tgt_vocab_size: int   = 5893,
-        d_model:        int   = 512,   # changed
-        N:              int   = 6,     # changed
+        d_model:        int   = 512,
+        N:              int   = 6,
         num_heads:      int   = 8,
-        d_ff:           int   = 2048,  # changed
+        d_ff:           int   = 2048,
         dropout:        float = 0.1,
         pad_idx:        int   = 1,
         pe_type:        str   = 'sinusoidal',
         scale:          bool  = True,
         src_vocab=None,
         tgt_vocab=None,
-        checkpoint_path: str  = None,
+        load_pretrained: bool = True,
     ) -> None:
         super().__init__()
 
-        # ── load vocab ────────────────────────────────────────────────
-        vocab_path = 'vocab.pkl'
-        if not os.path.exists(vocab_path):
-            gdown.download(id='1qAGRwLO-mSzf-BZeP2zXvQGiyDri30zi', output=vocab_path, quiet=False)
-        with open(vocab_path, 'rb') as f:
-            vocab_data = pickle.load(f)
-        src_vocab = vocab_data['src_vocab']
-        tgt_vocab = vocab_data['tgt_vocab']
+        if load_pretrained:
+            # download and load vocab
+            vocab_path = 'vocab.pkl'
+            if not os.path.exists(vocab_path):
+                gdown.download(id='1qAGRwLO-mSzf-BZeP2zXvQGiyDri30zi', output=vocab_path, quiet=False)
+            with open(vocab_path, 'rb') as f:
+                vocab_data = pickle.load(f)
+            src_vocab = vocab_data['src_vocab']
+            tgt_vocab = vocab_data['tgt_vocab']
 
-        # ── load checkpoint ───────────────────────────────────────────
-        ckpt_path = 'best_checkpoint.pt'
-        if not os.path.exists(ckpt_path):
-            gdown.download(id='1KTYDNSiWi0CHV_FaTe3Y2RRmDYReNacY', output=ckpt_path, quiet=False)
-        ckpt = torch.load(ckpt_path, map_location='cpu', weights_only=False)
-        cfg  = ckpt['model_config']
-        src_vocab_size = cfg['src_vocab_size']
-        tgt_vocab_size = cfg['tgt_vocab_size']
-        d_model        = cfg['d_model']
-        N              = cfg['N']
-        num_heads      = cfg['num_heads']
-        d_ff           = cfg['d_ff']
-        dropout        = cfg['dropout']
-        pad_idx        = cfg['pad_idx']
-        pe_type        = cfg.get('pe_type', 'sinusoidal')
-        scale          = cfg.get('scale', True)
+            # download and load checkpoint
+            ckpt_path = 'best_checkpoint_paper_base.pt'
+            if not os.path.exists(ckpt_path):
+                gdown.download(id='16-IFTBgSpWAnUetSSZgyhcfLdvihPzj8', output=ckpt_path, quiet=False)
+            ckpt = torch.load(ckpt_path, map_location='cpu', weights_only=False)
+            cfg  = ckpt['model_config']
+            src_vocab_size = cfg['src_vocab_size']
+            tgt_vocab_size = cfg['tgt_vocab_size']
+            d_model        = cfg['d_model']
+            N              = cfg['N']
+            num_heads      = cfg['num_heads']
+            d_ff           = cfg['d_ff']
+            dropout        = cfg['dropout']
+            pad_idx        = cfg['pad_idx']
+            pe_type        = cfg.get('pe_type', 'sinusoidal')
+            scale          = cfg.get('scale', True)
 
-        # ── load spacy ────────────────────────────────────────────────
-        import spacy
-        try:
-            self._spacy_de = spacy.load('de_core_news_sm')
-        except OSError:
-            from spacy.cli import download
-            download('de_core_news_sm')
-            self._spacy_de = spacy.load('de_core_news_sm')
+            # load spacy
+            import spacy
+            try:
+                self._spacy_de = spacy.load('de_core_news_sm')
+            except OSError:
+                from spacy.cli import download
+                download('de_core_news_sm')
+                self._spacy_de = spacy.load('de_core_news_sm')
+        else:
+            self._spacy_de = None
 
-        # ── store attrs ───────────────────────────────────────────────
-        self.d_model   = d_model
-        self.pad_idx   = pad_idx
-        self.pe_type   = pe_type
-        self.scale     = scale
-        self.src_vocab = src_vocab
-        self.tgt_vocab = tgt_vocab
+        self.d_model        = d_model
+        self.pad_idx        = pad_idx
+        self.pe_type        = pe_type
+        self.scale          = scale
+        self.src_vocab      = src_vocab
+        self.tgt_vocab      = tgt_vocab
+        self.load_pretrained = load_pretrained
 
-        # ── build architecture ────────────────────────────────────────
         self.src_embedding = nn.Embedding(src_vocab_size, d_model, padding_idx=pad_idx)
         self.tgt_embedding = nn.Embedding(tgt_vocab_size, d_model, padding_idx=pad_idx)
 
@@ -278,8 +280,8 @@ class Transformer(nn.Module):
 
         self._init_weights()
 
-        # ── load weights ──────────────────────────────────────────────
-        self.load_state_dict(ckpt['model_state_dict'])
+        if load_pretrained:
+            self.load_state_dict(ckpt['model_state_dict'])
 
     def _init_weights(self):
         for p in self.parameters():
@@ -312,6 +314,15 @@ class Transformer(nn.Module):
         return self.decode(memory, src_mask, tgt, tgt_mask)
 
     def infer(self, src_sentence: str) -> str:
+        if self._spacy_de is None:
+            import spacy
+            try:
+                self._spacy_de = spacy.load('de_core_news_sm')
+            except OSError:
+                from spacy.cli import download
+                download('de_core_news_sm')
+                self._spacy_de = spacy.load('de_core_news_sm')
+
         self.eval()
         device = next(self.parameters()).device
 
